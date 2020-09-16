@@ -7,7 +7,9 @@ You need to have python >= 3 installed, this can be done by running
 ```
 $ pkg install python
 ```
+The program uses `requests` as a dependency.
+`python -m pip install requests`
 Then, (WIP)
 
 ## License
-The one and only [GNU General Public License v2.0](LICENSE)
+[GNU General Public License v2.0](LICENSE)
