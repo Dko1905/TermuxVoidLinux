@@ -1,6 +1,7 @@
 #!/bin/python
 import platform
 import requests
+import sys
 from string import Template
 
 # >> STATIC Global variables here
@@ -54,9 +55,24 @@ def getMirror():
         return input("> ")
     else:
         return mirror
-def download():
-    print("NOT IMPLEMENTED")
-
+# Download file from url, and save it with the filename, all with a progress bar
+def download(url, filename):
+    with open(filename, "wb") as f:
+        response = requests.get(url, stream=True)
+        total_length = response.headers.get("content-length")
+        if total_length is None:
+            printf("No `content-lenght`")
+            f.write(response.content)
+        else:
+            progress = 0
+            total_length = int(total_length)
+            for data in response.iter_content(chunk_size=4096):
+                progress += len(data)
+                f.write(data)
+                percent_progress = (progress * 100) / total_length
+                sys.stdout.write("\rCurrent progress {:.2f}%".format(percent_progress))                
+                sys.stdout.flush()
+            print("") # Add newline
 # >> Main code
 arch = getArch()
 libc = getLibc()
@@ -73,5 +89,5 @@ print("Libc is "+libc)
 print("Mirror is "+mirror)
 print("ISO version is "+iso_version)
 
-print("URL is "+checksum_url)
-print("res is " + requests.get(checksum_url).text)
+download(checksum_url, checksum_filename)
+
