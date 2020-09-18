@@ -1,7 +1,8 @@
 #!/bin/python
-import platform
 import requests
 import sys
+import tarfile
+import platform
 from string import Template
 
 # >> STATIC Global variables here
@@ -31,7 +32,30 @@ def ask(text, options):
     for key in options:
         print(str(key) + " : " + str(options[key][0]))
     return options[int(input("> "))][1]
-
+# Download file from url, and save it with the filename, all with a progress bar
+def download(url, filename):
+    with open(filename, "wb") as f:
+        response = requests.get(url, stream=True)
+        total_length = response.headers.get("content-length")
+        if total_length is None:
+            printf("No `content-lenght`")
+            f.write(response.content)
+        else:
+            progress = 0
+            total_length = int(total_length)
+            for data in response.iter_content(chunk_size=4096):
+                progress += len(data)
+                f.write(data)
+                percent_progress = (progress * 100) / total_length
+                sys.stdout.write("\rCurrent progress {:.2f}%".format(percent_progress))                
+                sys.stdout.flush()
+            print("") # Add newline
+def extract(inputfile):
+    tar = tarfile.open(inputfile, "r:xz")
+    print("Starting to extract " + inputfile)
+    tar.extractall()
+    print("Done extractiong " + inputfile)
+    tar.close()
 # >> Global variable getters
 def getISOVersion():
     version = ask("Which version of void linux do you want?", iso_versions)
@@ -55,24 +79,6 @@ def getMirror():
         return input("> ")
     else:
         return mirror
-# Download file from url, and save it with the filename, all with a progress bar
-def download(url, filename):
-    with open(filename, "wb") as f:
-        response = requests.get(url, stream=True)
-        total_length = response.headers.get("content-length")
-        if total_length is None:
-            printf("No `content-lenght`")
-            f.write(response.content)
-        else:
-            progress = 0
-            total_length = int(total_length)
-            for data in response.iter_content(chunk_size=4096):
-                progress += len(data)
-                f.write(data)
-                percent_progress = (progress * 100) / total_length
-                sys.stdout.write("\rCurrent progress {:.2f}%".format(percent_progress))                
-                sys.stdout.flush()
-            print("") # Add newline
 # >> Main code
 arch = getArch()
 libc = getLibc()
@@ -90,4 +96,5 @@ print("Mirror is "+mirror)
 print("ISO version is "+iso_version)
 
 download(checksum_url, checksum_filename)
-
+download(iso_url, "iso.tar.gz")
+extract("iso.tar.gz")
