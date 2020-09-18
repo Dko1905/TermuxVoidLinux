@@ -2,6 +2,7 @@
 import requests
 import tarfile
 
+import hashlib
 import json
 import sys
 import platform
@@ -65,7 +66,7 @@ def extract(inputfile, outputfolder):
     tar.close()
 # Parse the two different checksum files
 def parse_checksum(checksumfile):
-    checksum_arr = []
+    checksum_arr = {}
     with open(checksumfile, "r") as f:
         if checksumfile == "sha256.txt":
             for line in f.readlines():
@@ -73,22 +74,27 @@ def parse_checksum(checksumfile):
                 if info[0] != "SHA256":
                     raise Exception(info[0] + " is not supported")
                 else:
-                    checksum_arr.append({
-                        'filename': info[1].strip('()'),
-                        'checksum': info[3].rstrip()
-                    })
+                    checksum_arr[info[1].strip('()')] = info[3].rstrip()
         elif checksumfile == "sha256sums.txt":
            for line in f.readlines():
                 info = line.split(" ")
-                checksum_arr.append({
-                    'filename': info[2].rstrip(),
-                    'checksum': info[0]
-                })
+                checksum_arr[info[2].rstrip()] = info[0]
         else:
             raise Exception("Checksum filetype not supported")
     return checksum_arr
-def checksum(inputfilename, checksumfile):
-    raise Exception("Not implemented")
+def checksum(isofile, checksumfile):
+    checksum_data_arr = parse_checksum(checksumfile)
+    if isofile in checksum_data_arr:
+        checksum_data = checksum_data_arr[isofile]
+        print(checksum_data)
+    else:
+        print("Not found")
+    # Open and get hash
+    #with open(isofile, "r") as f:
+        #file_hash = hashlib.sha256()
+        #while chunk := f.read(8192):
+            #file_hash.update(chunk)
+        
 # >> Global variable getters
 def getISOVersion():
     version = ask("Which version of void linux do you want?", iso_versions)
@@ -130,13 +136,19 @@ def main():
     print("Libc is "+libc)
     print("Mirror is "+mirror)
     print("ISO version is "+iso_version)
+    print("")
     if ask("Do you want to continue?", {1: ("Yes!", "yes"), 2: ("No!", "no")}) == "no":
         print("Ok. Quitting.")
-        return 0
+        return
     download(checksum_url, checksum_filename)
     download(iso_url, iso_filename)
-    os.mkdir("voidLinuxROOTFS")
-    extract("void.tar.gz", "voidLinuxROOTFS")
-    checksum()
+    checksum(iso_filename, checksum_filename)
+    #os.mkdir("voidLinuxROOTFS")
+    #extract("void.tar.gz", "voidLinuxROOTFS")
 
-sys.exit(main())
+try:
+    status = main()
+    sys.exit(0)
+except Exception as err:
+    sys.stderr.write("Cought exception: " + str(err) + "\n")
+    sys.exit(1)
