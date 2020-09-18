@@ -1,8 +1,10 @@
 #!/bin/python
 import requests
-import sys
 import tarfile
+
+import sys
 import platform
+import os
 from string import Template
 
 # >> STATIC Global variables here
@@ -23,7 +25,8 @@ checksum_filenames = {
     2: ("sha256sums.txt", "sha256sums.txt"),
     3: ("other", "other")
 }
-iso_url_template = Template("${mirror}${iso_version}/void-${arch}${libc}-ROOTFS-${iso_version}.tar.xz")
+iso_filename_template = Template("void-${arch}${libc}-ROOTFS-${iso_version}.tar.xz")
+iso_url_template = Template("${mirror}${iso_version}/${iso_filename}")
 checksum_url_template = Template("${mirror}${iso_version}/${checksum_filename}")
 
 # >> Helper functions
@@ -35,6 +38,7 @@ def ask(text, options):
 # Download file from url, and save it with the filename, all with a progress bar
 def download(url, filename):
     with open(filename, "wb") as f:
+        print("Starting to download " + filename)
         response = requests.get(url, stream=True)
         total_length = response.headers.get("content-length")
         if total_length is None:
@@ -50,12 +54,30 @@ def download(url, filename):
                 sys.stdout.write("\rCurrent progress {:.2f}%".format(percent_progress))                
                 sys.stdout.flush()
             print("") # Add newline
-def extract(inputfile):
+        print("Done downloading " + filename)
+# Extract inputfile
+def extract(inputfile, outputfolder):
     tar = tarfile.open(inputfile, "r:xz")
     print("Starting to extract " + inputfile)
-    tar.extractall()
+    tar.extractall(path=outputfolder)
     print("Done extractiong " + inputfile)
     tar.close()
+def checksum(inputfilename, checksumfile):
+    checksum_arr = []
+    with open(checksumfile, "r") as f:
+        if checksumfile == "sha256.txt":
+            for line in f.readlines():
+                info = line.split(" ")
+                if info[0] != "SHA256":
+                    raise Exception(info[0] + " is not supported")
+                else:
+                    checksum_arr.append({
+                        'filename': info[1].strip('()'),
+                        'checksum': info[3].rstrip()
+                    })
+        else:
+            raise Exception("Checksum filetype not supported")
+    return checksum_arr
 # >> Global variable getters
 def getISOVersion():
     version = ask("Which version of void linux do you want?", iso_versions)
@@ -86,7 +108,8 @@ mirror = getMirror()
 iso_version = getISOVersion()
 checksum_filename = getChecksumFilename()
 
-iso_url = iso_url_template.substitute(mirror=mirror, arch=arch, libc=libc, iso_version=iso_version)
+iso_filename = iso_filename_template.substitute(arch=arch, libc=libc, iso_version=iso_version)
+iso_url = iso_url_template.substitute(mirror=mirror, arch=arch, iso_version=iso_version, iso_filename=iso_filename)
 checksum_url = checksum_url_template.substitute(mirror=mirror, iso_version=iso_version, checksum_filename=checksum_filename)
 
 print("")
@@ -95,6 +118,9 @@ print("Libc is "+libc)
 print("Mirror is "+mirror)
 print("ISO version is "+iso_version)
 
-download(checksum_url, checksum_filename)
-download(iso_url, "iso.tar.gz")
-extract("iso.tar.gz")
+#download(checksum_url, checksum_filename)
+#download(iso_url, iso_filename)
+#os.mkdir("voidLinuxROOTFS")
+#extract("void.tar.gz", "voidLinuxROOTFS")
+a = checksum(iso_filename, checksum_filename)
+print(a)
