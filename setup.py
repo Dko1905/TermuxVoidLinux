@@ -2,6 +2,7 @@
 import requests
 import tarfile
 
+import json
 import sys
 import platform
 import os
@@ -62,7 +63,8 @@ def extract(inputfile, outputfolder):
     tar.extractall(path=outputfolder)
     print("Done extractiong " + inputfile)
     tar.close()
-def checksum(inputfilename, checksumfile):
+# Parse the two different checksum files
+def parse_checksum(checksumfile):
     checksum_arr = []
     with open(checksumfile, "r") as f:
         if checksumfile == "sha256.txt":
@@ -75,9 +77,18 @@ def checksum(inputfilename, checksumfile):
                         'filename': info[1].strip('()'),
                         'checksum': info[3].rstrip()
                     })
+        elif checksumfile == "sha256sums.txt":
+           for line in f.readlines():
+                info = line.split(" ")
+                checksum_arr.append({
+                    'filename': info[2].rstrip(),
+                    'checksum': info[0]
+                })
         else:
             raise Exception("Checksum filetype not supported")
     return checksum_arr
+def checksum(inputfilename, checksumfile):
+    raise Exception("Not implemented")
 # >> Global variable getters
 def getISOVersion():
     version = ask("Which version of void linux do you want?", iso_versions)
@@ -102,25 +113,30 @@ def getMirror():
     else:
         return mirror
 # >> Main code
-arch = getArch()
-libc = getLibc()
-mirror = getMirror()
-iso_version = getISOVersion()
-checksum_filename = getChecksumFilename()
+def main:
+    # Real input from user
+    arch = getArch() 
+    libc = getLibc()
+    mirror = getMirror()
+    iso_version = getISOVersion()
+    checksum_filename = getChecksumFilename()
+    # Substritude templates
+    iso_filename = iso_filename_template.substitute(arch=arch, libc=libc, iso_version=iso_version)
+    iso_url = iso_url_template.substitute(mirror=mirror, arch=arch, iso_version=iso_version, iso_filename=iso_filename)
+    checksum_url = checksum_url_template.substitute(mirror=mirror, iso_version=iso_version, checksum_filename=checksum_filename)
+    # Print selection & ask if user wants to continue
+    print("")
+    print("Arch is "+arch)
+    print("Libc is "+libc)
+    print("Mirror is "+mirror)
+    print("ISO version is "+iso_version)
+    if ask("Do you want to continue?", {1: ("Yes!", "yes"), 2: ("No!", "no")}) == "no":
+        print("Ok. Quitting.")
+        return 0
+    download(checksum_url, checksum_filename)
+    download(iso_url, iso_filename)
+    os.mkdir("voidLinuxROOTFS")
+    extract("void.tar.gz", "voidLinuxROOTFS")
+    checksum()
 
-iso_filename = iso_filename_template.substitute(arch=arch, libc=libc, iso_version=iso_version)
-iso_url = iso_url_template.substitute(mirror=mirror, arch=arch, iso_version=iso_version, iso_filename=iso_filename)
-checksum_url = checksum_url_template.substitute(mirror=mirror, iso_version=iso_version, checksum_filename=checksum_filename)
-
-print("")
-print("Arch is "+arch)
-print("Libc is "+libc)
-print("Mirror is "+mirror)
-print("ISO version is "+iso_version)
-
-#download(checksum_url, checksum_filename)
-#download(iso_url, iso_filename)
-#os.mkdir("voidLinuxROOTFS")
-#extract("void.tar.gz", "voidLinuxROOTFS")
-a = checksum(iso_filename, checksum_filename)
-print(a)
+sys.exit(main())
