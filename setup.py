@@ -113,7 +113,7 @@ def getMirror():
     else:
         return mirror
 # >> Main code
-def main:
+def main():
     # Real input from user
     arch = getArch() 
     libc = getLibc()
