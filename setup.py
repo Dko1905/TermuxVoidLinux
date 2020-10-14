@@ -27,6 +27,16 @@ checksum_filenames = {
     2: ("sha256sums.txt", "sha256sums.txt"),
     3: ("other", "other")
 }
+
+login_file = Template("""#!/bin/bash -e
+unset LD_PRELOAD
+exec proot -r ./void-linux-ROOTFS -0 -w / -b /dev -b /proc -b /sys -b ${HOME} -w ${HOME} /usr/bin/env -i HOME=/root USER=root TERM="${TERM}" LANG=${LANG} PATH=/bin:/usr/bin:/sbin:/usr/sbin /bin/bash --login
+""")
+
+login_folderpath = os.environ["PREFIX"] if os.environ["PREFIX"] != None else "/bin"
+login_filename = os.path.join(login_folderpath, "startvoid")
+login_filedata = login_file.substitute(LANG=os.environ["LANG"], TERM=os.environ["TERM"], HOME=os.environ["HOME"], DESTINATION=login_filename)
+
 iso_filename_template = Template("void-${arch}${libc}-ROOTFS-${iso_version}.tar.xz")
 iso_url_template = Template("${mirror}${iso_version}/${iso_filename}")
 checksum_url_template = Template("${mirror}${iso_version}/${checksum_filename}")
@@ -49,7 +59,7 @@ def download(url, filename):
         else:
             progress = 0
             total_length = int(total_length)
-            for data in response.iter_content(chunk_size=4096):
+            for data in response.iter_content(chunk_size=8192):
                 progress += len(data)
                 f.write(data)
                 percent_progress = (progress * 100) / total_length
@@ -82,19 +92,30 @@ def parse_checksum(checksumfile):
         else:
             raise Exception("Checksum filetype not supported")
     return checksum_arr
+# Calculate and check hash
 def checksum(isofile, checksumfile):
     checksum_data_arr = parse_checksum(checksumfile)
     if isofile in checksum_data_arr:
         checksum_data = checksum_data_arr[isofile]
-        print(checksum_data)
+        filesize = os.path.getsize(isofile)
+        progress = 0
+        with open(isofile, "rb") as f:
+            filehash = hashlib.sha256()
+            print("Starting to calculate hash of " + isofile)
+            while chunk := f.read(8192):
+                progress += len(chunk)
+                filehash.update(chunk)
+                percent_progress = (progress * 100) / filesize
+                sys.stdout.write("\rCurrent progress {:.2f}%".format(percent_progress))                
+                sys.stdout.flush()
+            print()
+            print("Done calculating hash of " + isofile)
+            if filehash.hexdigest().lower() == checksum_data.lower():
+                return 1 # Valid
+            else:
+                return 0 # Invalid
     else:
-        print("Not found")
-    # Open and get hash
-    #with open(isofile, "r") as f:
-        #file_hash = hashlib.sha256()
-        #while chunk := f.read(8192):
-            #file_hash.update(chunk)
-        
+        raise Exception("File not found in checksum data")
 # >> Global variable getters
 def getISOVersion():
     version = ask("Which version of void linux do you want?", iso_versions)
@@ -140,15 +161,22 @@ def main():
     if ask("Do you want to continue?", {1: ("Yes!", "yes"), 2: ("No!", "no")}) == "no":
         print("Ok. Quitting.")
         return
+    # Download, checksum and extract
     download(checksum_url, checksum_filename)
     download(iso_url, iso_filename)
-    checksum(iso_filename, checksum_filename)
-    #os.mkdir("voidLinuxROOTFS")
-    #extract("void.tar.gz", "voidLinuxROOTFS")
-
+    if checksum(iso_filename, checksum_filename) == 0: # Invalid
+        raise Exception("Checksum does not match, your download might me corrupt")
+    os.mkdir("void-linux-ROOTFS")
+    extract(iso_filename, "void-linux-ROOTFS")
+    # Setup login file
+    os.makedirs(login_folderpath, exist_ok=True)
+    with open(login_filename, "w") as f:
+        f.write(login_filedata)
+    os.system("chmod 700 " + login_filename)
 try:
     status = main()
     sys.exit(0)
 except Exception as err:
     sys.stderr.write("Cought exception: " + str(err) + "\n")
+    raise err
     sys.exit(1)
